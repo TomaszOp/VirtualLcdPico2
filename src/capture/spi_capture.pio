@@ -1,0 +1,37 @@
+; Przechwytywanie SPI wyswietlacza (tryb 0) z linia D/C.
+;
+; Piny kolejno od in_base:  +0 MOSI, +1 D/C, +2 SCK, +3 CS
+; Na kazde zbocze narastajace SCK wsuwane sa 2 bity: MOSI i D/C.
+; Po 8 bitach (16 bitow ISR) autopush: jedno slowo 16-bit na bajt SPI.
+;   bity 15,14 = D/C,MOSI bitu 7 ... bity 1,0 = D/C,MOSI bitu 0
+; CS sprawdzany na poczatku kazdego bajtu - zegar innych urzadzen na wspolnej szynie jest pomijany.
+; Petla rozwinieta: 3 instrukcje na bit, wiec przy 200 MHz zapas do ~60 MHz SPI.
+
+.program spi_capture
+.wrap_target
+    wait 0 pin 3        ; CS = 0: poczatek bajtu
+    wait 1 pin 2        ; bit 7: SCK w gore
+    in pins, 2          ;   MOSI + D/C
+    wait 0 pin 2
+    wait 1 pin 2        ; bit 6: SCK w gore
+    in pins, 2          ;   MOSI + D/C
+    wait 0 pin 2
+    wait 1 pin 2        ; bit 5: SCK w gore
+    in pins, 2          ;   MOSI + D/C
+    wait 0 pin 2
+    wait 1 pin 2        ; bit 4: SCK w gore
+    in pins, 2          ;   MOSI + D/C
+    wait 0 pin 2
+    wait 1 pin 2        ; bit 3: SCK w gore
+    in pins, 2          ;   MOSI + D/C
+    wait 0 pin 2
+    wait 1 pin 2        ; bit 2: SCK w gore
+    in pins, 2          ;   MOSI + D/C
+    wait 0 pin 2
+    wait 1 pin 2        ; bit 1: SCK w gore
+    in pins, 2          ;   MOSI + D/C
+    wait 0 pin 2
+    wait 1 pin 2        ; bit 0: SCK w gore
+    in pins, 2          ;   MOSI + D/C
+    wait 0 pin 2
+.wrap
