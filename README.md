@@ -90,10 +90,8 @@ przepływność), WiFi (RSSI), wolna pamięć i czas pracy.
 
 ## Jak to działa
 
-Ta sama funkcja co wersja ESP32-S3 (`../Esp32`, porzucona). Różnica jest w przechwytywaniu: **PIO** składa
-bity sprzętowo. Na każde zbocze SCK wsuwa MOSI i D/C, a po 8 bitach oddaje jedno słowo 16-bit na bajt SPI
-(ESP32-S3 musiał zapisywać 1 bajt na każde zbocze). CS jest sprawdzany na początku każdego bajtu, więc zegar
-innych urządzeń na wspólnej szynie jest pomijany.
+**PIO** składa bity sprzętowo. Na każde zbocze SCK wsuwa MOSI i D/C, a po 8 bitach oddaje jedno słowo 16-bit na bajt SPI.
+CS jest sprawdzany na początku każdego bajtu, więc zegar innych urządzeń na wspólnej szynie jest pomijany.
 
 ## Framework
 
