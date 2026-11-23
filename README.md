@@ -297,6 +297,10 @@ Without a profile the controller works normally, only the demo and loopback test
 - Test page → loopback test for the new model (all clocks) – must report "OK".
 - With a real microcontroller and library: rotation 0–3, colors (RGB/BGR), inversion and window offset.
 
+## License
+
+The VirtualLcd code is released under the [MIT license](LICENSE).
+
 ---
 
 <a id="polski"></a>
@@ -594,3 +598,7 @@ Bez profilu sterownik działa normalnie, tylko demo i test pętli go nie obsłu�
 - `pio run` – kompilacja.
 - Strona Test → test pętli zwrotnej dla nowego modelu (wszystkie zegary) – musi dać „OK”.
 - Z prawdziwym mikrokontrolerem i biblioteką: obrót 0–3, kolory (RGB/BGR), inwersja i przesunięcie okna.
+
+## Licencja
+
+Kod VirtualLcd jest udostępniony na [licencji MIT](LICENSE).
