@@ -1,10 +1,10 @@
 #pragma once
 
-// Strona testowa (/test): podglad, test petli zwrotnej, demo i diagnostyka.
-// Wspolny naglowek i styl z Pages.h.
+// Strona testowa (/test): podglad, test petli zwrotnej, demo i diagnostyka - wersja polska i angielska.
+// Wspolny naglowek i styl z Pages.h; czesci niezalezne od jezyka w makrach VLCD_CSS_TEST / VLCD_JS_TEST_VIEW.
 #include "Pages.h"
 
-static const char kTestHtml[] = VLCD_HEAD("Virtual LCD – test") R"HTML(
+#define VLCD_CSS_TEST R"HTML(
   label { color:var(--muted); font-size:13px; font-weight:600; }
   select { font:inherit; font-weight:550; padding:7px 10px; border-radius:10px; border:1px solid var(--line);
            background:var(--bg2); color:var(--fg); }
@@ -25,43 +25,10 @@ static const char kTestHtml[] = VLCD_HEAD("Virtual LCD – test") R"HTML(
               font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; min-height:3em; margin:8px 0 0;
               border:1px solid rgba(255,255,255,.06); }
   footer { padding:14px 16px 24px; color:var(--muted); font-size:12px; text-align:center; }
-</style>
-</head>
-<body>
-)HTML" VLCD_NAV("← ", "", "", "", " class=\"on\"") R"HTML(
-<div class="tw">
-<div class="card tools">
-  <span class="pill"><span id="dot" class="dot"></span><span id="conn">rozłączony</span></span>
-  <label>Emulowany LCD <select id="driver"></select></label>
-  <label>Skala <select id="scale"><option>1</option><option selected>2</option><option>3</option><option>4</option></select></label>
-  <label>Obrót <select id="rot"><option value="0">0°</option><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select></label>
-  <button class="btn" id="test">Obraz testowy</button>
-</div>
-<main class="card" style="padding:12px"><div id="stage"><canvas id="screen" width="240" height="320"></canvas></div></main>
-<section class="card" id="loop">
-  <h2>Testy przez SPI</h2>
-  <div class="row">
-    <span class="lbl">Wyświetlacz i zegar</span>
-    <select id="demoDrv"></select>
-    <select id="demoClk"><option value="10">10 MHz</option><option value="20" selected>20 MHz</option><option value="40">40 MHz</option></select>
-  </div>
-  <div class="row">
-    <span class="lbl">Demo</span>
-    <button class="btn primary" id="demoStart" data-test>Start demo</button>
-  </div>
-  <div class="row">
-    <span class="lbl">Test pętli zwrotnej</span>
-    <button class="btn" id="loopOne" data-test>Wybrany zegar</button>
-    <button class="btn" id="loopClocks" data-test>10, 20 i 40 MHz</button>
-    <button class="btn" id="loopAll" data-test>Wszystkie modele</button>
-  </div>
-  <div class="row"><small>„Wszystkie modele” – każdy sterownik w pierwszej rozdzielczości, przy 10, 20 i 40 MHz.
-    Testy wymagają przewodów GP10→GP4 (SCK), GP11→GP2 (MOSI), GP12→GP3 (D/C), GP13→GP5 (CS), GP14→GP6 (RST).</small></div>
-  <pre id="looplog">—</pre>
-</section>
-</div>
-<footer id="stats"></footer>
-<script>
+)HTML"
+
+// Podglad: skala i obrot z listy na stronie (pamietane w przegladarce), dekodowanie ramek obrazu (takze RLE).
+#define VLCD_JS_TEST_VIEW R"HTML(
 const $ = id => document.getElementById(id);
 const screen = $('screen'), ctx = screen.getContext('2d');
 const src = document.createElement('canvas'), sctx = src.getContext('2d');
@@ -134,6 +101,47 @@ function onRegion(buf) {
   needDraw = true;
 }
 
+)HTML"
+
+static const char kTestHtml[] = VLCD_HEAD("pl", "Virtual LCD – test") VLCD_CSS_TEST R"HTML(
+</style>
+</head>
+<body>
+)HTML" VLCD_NAV_PL("← ", "", "", "", " class=\"on\"") R"HTML(
+<div class="tw">
+<div class="card tools">
+  <span class="pill"><span id="dot" class="dot"></span><span id="conn">rozłączony</span></span>
+  <label>Emulowany LCD <select id="driver"></select></label>
+  <label>Skala <select id="scale"><option>1</option><option selected>2</option><option>3</option><option>4</option></select></label>
+  <label>Obrót <select id="rot"><option value="0">0°</option><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select></label>
+  <button class="btn" id="test">Obraz testowy</button>
+</div>
+<main class="card" style="padding:12px"><div id="stage"><canvas id="screen" width="240" height="320"></canvas></div></main>
+<section class="card" id="loop">
+  <h2>Testy przez SPI</h2>
+  <div class="row">
+    <span class="lbl">Wyświetlacz i zegar</span>
+    <select id="demoDrv"></select>
+    <select id="demoClk"><option value="10">10 MHz</option><option value="20" selected>20 MHz</option><option value="40">40 MHz</option></select>
+  </div>
+  <div class="row">
+    <span class="lbl">Demo</span>
+    <button class="btn primary" id="demoStart" data-test>Start demo</button>
+  </div>
+  <div class="row">
+    <span class="lbl">Test pętli zwrotnej</span>
+    <button class="btn" id="loopOne" data-test>Wybrany zegar</button>
+    <button class="btn" id="loopClocks" data-test>10, 20 i 40 MHz</button>
+    <button class="btn" id="loopAll" data-test>Wszystkie modele</button>
+  </div>
+  <div class="row"><small>„Wszystkie modele” – każdy sterownik w pierwszej rozdzielczości, przy 10, 20 i 40 MHz.
+    Testy wymagają przewodów GP10→GP4 (SCK), GP11→GP2 (MOSI), GP12→GP3 (D/C), GP13→GP5 (CS), GP14→GP6 (RST).</small></div>
+  <pre id="looplog">—</pre>
+</section>
+</div>
+<footer id="stats"></footer>
+<script>
+)HTML" VLCD_JS_TEST_VIEW R"HTML(
 // Lista "model rozdzielczosc" -> wartosc "MODEL/ROZDZIELCZOSC" (dla wyboru emulatora i testow).
 // Serwer wysyla ja raz, po "hello".
 function onDrivers(m) {
@@ -214,6 +222,16 @@ $('rot').onchange = e => { save('rot', e.target.value); layout(); };
 </html>
 )HTML";
 
+#include "TestHtmlEn.h"
+
 #undef VLCD_HEAD
 #undef VLCD_NAV
+#undef VLCD_NAV_PL
+#undef VLCD_NAV_EN
+#undef VLCD_CSS_MAIN
+#undef VLCD_CSS_LCD
+#undef VLCD_CSS_WIFI
+#undef VLCD_CSS_TEST
+#undef VLCD_JS_MAIN_VIEW
+#undef VLCD_JS_TEST_VIEW
 #undef VLCD_JS_COMMON

@@ -156,9 +156,22 @@ poprawka liczenia `smRestarts`.
   w sieci uzytkownika): `capture.overruns`, `maxPending`, `peakLoadPct`, `peakKBps`, `rxStalls`, `smRestarts`,
   `restartAt[]`, `offCmds`, `web.sendKBps`, `led`.
 
+## Strony PL / EN (23.11.2026)
+
+- Kazda strona istnieje w dwoch wersjach: polska w `Pages.h` / `TestHtml.h`, angielska w `PagesEn.h` /
+  `TestHtmlEn.h` (te same id elementow i logika JS). Czesci niezalezne od jezyka sa w makrach `VLCD_CSS_*`
+  i `VLCD_JS_MAIN_VIEW` / `VLCD_JS_TEST_VIEW`. **Zmiana tekstu albo logiki strony = zmiana w obu wersjach.**
+- Jezyk wybiera serwer (`english_` w `WebServer`, wczytany w `begin()` z `/ui.bin`) - bez JS po stronie
+  przegladarki, wiec pierwsza strona po starcie jest juz w zapisanym jezyku. Przelacznik PL/EN w `VLCD_NAV`
+  wysyla `POST /api/lang` (lang=pl|en, zapis tylko przy zmianie) i przeladowuje strone; `GET /api/lang`
+  sprawdza strona przywrocona z pamieci przegladarki (wstecz). Strony maja `Cache-Control: no-cache`.
+- Komunikaty bledow API sa tlumaczone przez `tr(pl, en)`; log testow (z firmware) zostaje po polsku.
+- Waski ekran: przy <=480 px widac tylko przycisk drugiego jezyka, przy <=400 px znika logo (polskie nazwy
+  zakladek ledwo sie mieszcza). Przy 320 px belka byla za szeroka juz przed zmiana.
+
 ## Ustawienia (LittleFS)
 
-- Pliki `/lcd.bin` i `/wifi.bin`: [magic "VLCD"][sizeof struktury][struktura]. Zmiana rozmiaru struktury =
+- Pliki `/lcd.bin`, `/wifi.bin` i `/ui.bin` (`UiSettings`, jezyk stron): [magic "VLCD"][sizeof struktury][struktura]. Zmiana rozmiaru struktury =
   stary plik ignorowany (wartosci domyslne). **Nie zmieniac magic** – uniewazniloby tez WiFi.
   `LcdSettings` ma `reserved[4]` na przyszlosc.
 - Zapis do flasha wstrzymuje rdzen 1 (arduino-pico) – tylko po "Zapisz" na stronie.

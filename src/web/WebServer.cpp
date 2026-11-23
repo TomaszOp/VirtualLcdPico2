@@ -142,9 +142,12 @@ bool WebServer::begin(uint16_t port) {
     sendBuf_ = (uint8_t*)malloc(8 + kMaxPixelsPerFrame * 2);
     rleBuf_ = (uint8_t*)malloc(8 + kMaxPixelsPerFrame * 2 + 64);
     if (!sendBuf_ || !rleBuf_) return false;
+    UiSettings ui;
+    Settings::loadUi(ui);
+    english_ = ui.english;
     server_ = new WiFiServer(port);
     server_->begin();
-    Serial.printf("[web] Serwer WWW na porcie %u\n", port);
+    Serial.printf("[web] Serwer WWW na porcie %u, strony %s\n", port, english_ ? "EN" : "PL");
     return true;
 }
 
@@ -223,10 +226,12 @@ void WebServer::handleHttp(WiFiClient& c) {
         delete r;
         return;  // polaczenie zostaje otwarte
     }
-    if (get && strcmp(p, "/") == 0) sendPage(c, kMainHtml);
-    else if (get && strcmp(p, "/lcd") == 0) sendPage(c, kLcdHtml);
-    else if (get && strcmp(p, "/wifi") == 0) sendPage(c, kWifiHtml);
-    else if (get && strcmp(p, "/test") == 0) sendPage(c, kTestHtml);
+    if (get && strcmp(p, "/") == 0) sendPage(c, english_ ? kMainHtmlEn : kMainHtml);
+    else if (get && strcmp(p, "/lcd") == 0) sendPage(c, english_ ? kLcdHtmlEn : kLcdHtml);
+    else if (get && strcmp(p, "/wifi") == 0) sendPage(c, english_ ? kWifiHtmlEn : kWifiHtml);
+    else if (get && strcmp(p, "/test") == 0) sendPage(c, english_ ? kTestHtmlEn : kTestHtml);
+    else if (get && strcmp(p, "/api/lang") == 0) langGet(c);
+    else if (post && strcmp(p, "/api/lang") == 0) langPost(c, r->body);
     else if (get && strcmp(p, "/api/settings") == 0) settingsGet(c);
     else if (post && strcmp(p, "/api/settings") == 0) settingsPost(c, r->body);
     else if (post && strcmp(p, "/api/test") == 0) {
@@ -237,7 +242,7 @@ void WebServer::handleHttp(WiFiClient& c) {
     else if (post && strcmp(p, "/api/wifi") == 0) wifiPost(c, r->body);
     else if (post && strcmp(p, "/api/wifi/clear") == 0) {
         if (!Settings::clearWifi()) {
-            sendError(c, "blad zapisu");
+            sendError(c, tr("blad zapisu", "write error"));
         } else {
             Serial.println("[web] Usunieto ustawienia WiFi, restart");
             sendJson(c, "{\"ok\":true}");
@@ -257,8 +262,9 @@ void WebServer::sendPage(WiFiClient& c, const char* html) {
     // Wczytanie strony = poprzednia strona w tej przegladarce jest juz nieaktualna.
     kickIp(ipOf(c), -1);
     size_t len = strlen(html);
-    c.printf("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: %u\r\n"
-             "Connection: close\r\n\r\n",
+    // no-cache: strona zalezy od zapisanego jezyka, przegladarka musi zawsze pytac serwer.
+    c.printf("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-cache\r\n"
+             "Content-Length: %u\r\nConnection: close\r\n\r\n",
              (unsigned)len);
     c.write((const uint8_t*)html, len);
 }
@@ -303,29 +309,29 @@ void WebServer::settingsGet(WiFiClient& c) {
 void WebServer::settingsPost(WiFiClient& c, const char* body) {
     char value[16];
     LcdSettings ls;
-    if (!formField(body, "driver", ls.driver, sizeof(ls.driver))) return sendError(c, "brak modelu LCD");
+    if (!formField(body, "driver", ls.driver, sizeof(ls.driver))) return sendError(c, tr("brak modelu LCD", "missing LCD model"));
     bool known = false;
     for (size_t i = 0; i < VirtualLcd::driverCount() && !known; i++)
         known = strcasecmp(ls.driver, VirtualLcd::driverName(i)) == 0;
-    if (!known) return sendError(c, "nieznany model LCD");
+    if (!known) return sendError(c, tr("nieznany model LCD", "unknown LCD model"));
     if (!formField(body, "res", ls.resolution, sizeof(ls.resolution))) ls.resolution[0] = 0;
     const PanelSize* panel = VirtualLcd::findPanel(ls.driver, ls.resolution);
-    if (ls.resolution[0] && strcmp(panel->name, ls.resolution) != 0) return sendError(c, "nieznana rozdzielczosc");
+    if (ls.resolution[0] && strcmp(panel->name, ls.resolution) != 0) return sendError(c, tr("nieznana rozdzielczosc", "unknown resolution"));
     strncpy(ls.resolution, panel->name, sizeof(ls.resolution) - 1);
     int rot = formField(body, "rot", value, sizeof(value)) ? atoi(value) : -1;
     int scale = formField(body, "scale", value, sizeof(value)) ? atoi(value) : -1;
-    if (rot < 0 || rot >= 360 || rot % 90 != 0) return sendError(c, "bledny obrot");
-    if (scale < 0 || scale > 4) return sendError(c, "bledna skala");
+    if (rot < 0 || rot >= 360 || rot % 90 != 0) return sendError(c, tr("bledny obrot", "invalid rotation"));
+    if (scale < 0 || scale > 4) return sendError(c, tr("bledna skala", "invalid scale"));
     ls.rotation = rot;
     ls.scale = scale;
     ls.ignoreBacklight = formField(body, "ignoreLed", value, sizeof(value)) && strcmp(value, "true") == 0;
     lcd_.setBacklightIgnored(ls.ignoreBacklight);
     VirtualLcdStatus now = lcd_.status();
     if (strcasecmp(now.driver, ls.driver) != 0 || strcmp(now.resolution, ls.resolution) != 0) {
-        if (!lcd_.selectDriver(ls.driver, ls.resolution)) return sendError(c, "nie udalo sie przelaczyc sterownika");
+        if (!lcd_.selectDriver(ls.driver, ls.resolution)) return sendError(c, tr("nie udalo sie przelaczyc sterownika", "could not switch the controller"));
         fullFrame_ = true;
     }
-    if (!Settings::saveLcd(ls)) return sendError(c, "blad zapisu");
+    if (!Settings::saveLcd(ls)) return sendError(c, tr("blad zapisu", "write error"));
     Serial.printf("[web] Zapisano ustawienia: %s %s, obrot %d, skala %d\n", ls.driver, ls.resolution, rot, scale);
     sendJson(c, "{\"ok\":true}");
 }
@@ -355,24 +361,41 @@ void WebServer::wifiPost(WiFiClient& c, const char* body) {
     char mode[8];
     WifiSettings ws;
     if (!formField(body, "mode", mode, sizeof(mode)) || (strcmp(mode, "ap") != 0 && strcmp(mode, "sta") != 0))
-        return sendError(c, "bledny tryb");
+        return sendError(c, tr("bledny tryb", "invalid mode"));
     ws.ap = strcmp(mode, "ap") == 0;
     if (!formField(body, "ssid", ws.ssid, sizeof(ws.ssid)) || !ws.ssid[0])
-        return sendError(c, "nazwa sieci: 1-32 znaki");
+        return sendError(c, tr("nazwa sieci: 1-32 znaki", "network name: 1-32 characters"));
     if (!formField(body, "pass", ws.password, sizeof(ws.password))) ws.password[0] = 0;
     size_t pl = strlen(ws.password);
-    if (pl && (pl < 8 || pl > 63)) return sendError(c, "haslo: puste albo 8-63 znaki");
-    if (!Settings::saveWifi(ws)) return sendError(c, "blad zapisu");
+    if (pl && (pl < 8 || pl > 63)) return sendError(c, tr("haslo: puste albo 8-63 znaki", "password: empty or 8-63 characters"));
+    if (!Settings::saveWifi(ws)) return sendError(c, tr("blad zapisu", "write error"));
     Serial.printf("[web] Zapisano WiFi: %s \"%s\", restart\n", ws.ap ? "AP" : "STA", ws.ssid);
     sendJson(c, "{\"ok\":true}");
     restartAt_ = millis() + 800;
 }
 
+void WebServer::langGet(WiFiClient& c) { sendJson(c, english_ ? "{\"lang\":\"en\"}" : "{\"lang\":\"pl\"}"); }
+
+// lang=pl|en - zapis w flashu tylko przy zmianie (zapis na chwile wstrzymuje rdzen 1).
+void WebServer::langPost(WiFiClient& c, const char* body) {
+    char lang[4];
+    if (!formField(body, "lang", lang, sizeof(lang)) || (strcmp(lang, "pl") != 0 && strcmp(lang, "en") != 0))
+        return sendError(c, tr("bledny jezyk", "invalid language"));
+    UiSettings ui;
+    ui.english = strcmp(lang, "en") == 0;
+    if (ui.english != english_) {
+        if (!Settings::saveUi(ui)) return sendError(c, tr("blad zapisu", "write error"));
+        english_ = ui.english;
+        Serial.printf("[web] Jezyk stron: %s\n", english_ ? "EN" : "PL");
+    }
+    sendJson(c, "{\"ok\":true}");
+}
+
 void WebServer::scan(WiFiClient& c) {
     constexpr size_t kLen = 2048;
     char* json = (char*)malloc(kLen);
-    if (!json) return sendError(c, "brak pamieci");
-    if (Wifi::scanJson(json, kLen) < 0) sendError(c, "skanowanie niedostepne");
+    if (!json) return sendError(c, tr("brak pamieci", "out of memory"));
+    if (Wifi::scanJson(json, kLen) < 0) sendError(c, tr("skanowanie niedostepne", "scan unavailable"));
     else sendJson(c, json);
     free(json);
 }

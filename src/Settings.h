@@ -20,6 +20,12 @@ struct WifiSettings {
     char password[65] = "";  // puste = siec otwarta
 };
 
+// Ustawienia strony WWW (osobny plik - zapis jezyka nie dotyka ustawien LCD ani WiFi).
+struct UiSettings {
+    bool english = false;     // jezyk stron: false = polski, true = angielski
+    uint8_t reserved[3] = {}; // na przyszlosc
+};
+
 namespace Settings {
 
 // Brak pliku = wartosci domyslne ze struktury, wynik false.
@@ -30,5 +36,8 @@ bool saveLcd(const LcdSettings& s);
 bool loadWifi(WifiSettings& out);
 bool saveWifi(const WifiSettings& s);
 bool clearWifi();
+
+bool loadUi(UiSettings& out);
+bool saveUi(const UiSettings& s);
 
 }  // namespace Settings

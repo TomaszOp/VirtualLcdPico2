@@ -15,6 +15,8 @@ class VirtualLcd;
 //          bit 14 w x (kRleFlag) = piksele skompresowane RLE (format w WebServer.cpp, rleEncode),
 //   stan:  tekstowe ramki JSON co sekunde i po kazdej zmianie.
 // Wszystko dziala na rdzeniu 0 w poll() - wywolywanym z petli i w trakcie testow.
+// Strony sa po polsku albo angielsku - jezyk wybrany przelacznikiem w gornej belce jest zapisany w flashu
+// (Settings::saveUi) i wczytywany w begin(), wiec juz pierwsza strona po starcie jest w zapisanym jezyku.
 class WebServer {
 public:
     explicit WebServer(VirtualLcd& lcd) : lcd_(lcd) {}
@@ -57,6 +59,10 @@ private:
     void wifiPost(WiFiClient& c, const char* body);
     void scan(WiFiClient& c);
     void status(WiFiClient& c);
+    void langGet(WiFiClient& c);
+    void langPost(WiFiClient& c, const char* body);
+    // Tekst w jezyku stron (komunikaty bledow API).
+    const char* tr(const char* pl, const char* en) const { return english_ ? en : pl; }
 
     void upgrade(WiFiClient& c, const char* key);
     // Zamyka polaczenia WebSocket z adresu ip (z wyjatkiem keep): stara karta po odswiezeniu lub przejsciu
@@ -80,6 +86,7 @@ private:
     size_t nextEvict_ = 0;
     bool inPoll_ = false;
     bool fullFrame_ = false;
+    bool english_ = false;  // jezyk stron: z UiSettings, zmieniany przez POST /api/lang
     uint32_t lastSend_ = 0;
     uint32_t lastInfo_ = 0;
     uint32_t testSeq_ = 0;

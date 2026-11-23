@@ -1,10 +1,13 @@
 #pragma once
 
 // Strony uzytkownika: "/" (podglad), "/lcd" (ustawienia wyswietlacza) oraz "/wifi" (ustawienia sieci).
-// Wspolny styl jest doklejany do obu stron (sasiednie literaly lacza sie w jeden tekst).
+// Wspolny styl jest doklejany do wszystkich stron (sasiednie literaly lacza sie w jeden tekst).
+// Kazda strona jest w dwoch jezykach: polska tutaj, angielska w PagesEn.h (serwer wybiera wg zapisanego jezyka).
+// Czesci niezalezne od jezyka (style, rysowanie obrazu) sa w makrach VLCD_CSS_* / VLCD_JS_* - wspolne dla obu wersji.
+// Zmiana tekstu na stronie = zmiana w obu plikach.
 
-#define VLCD_HEAD(title) R"HTML(<!doctype html>
-<html lang="pl">
+#define VLCD_HEAD(lang, title) R"HTML(<!doctype html>
+<html lang=")HTML" lang R"HTML(">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -42,6 +45,11 @@ nav a { color:var(--muted); text-decoration:none; padding:6px 12px; border-radiu
         transition:color .15s, background .15s; }
 nav a:hover { color:var(--fg); }
 nav a.on { background:var(--solid); color:var(--accent); box-shadow:0 1px 3px rgba(15,23,42,.12); }
+.lang { display:flex; gap:2px; padding:3px; border-radius:12px; background:var(--soft); }
+.lang button { border:0; background:transparent; color:var(--muted); font:inherit; font-weight:700; font-size:12px;
+               letter-spacing:.04em; padding:6px 9px; border-radius:9px; cursor:pointer; transition:color .15s, background .15s; }
+.lang button:hover { color:var(--fg); }
+.lang button[aria-pressed=true] { background:var(--solid); color:var(--accent); box-shadow:0 1px 3px rgba(15,23,42,.12); cursor:default; }
 .wrap { max-width:1100px; margin:0 auto; padding:20px 16px 32px; }
 .card { background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:20px; box-shadow:var(--shadow);
         -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); }
@@ -82,21 +90,42 @@ select.combo { width:100%; font:inherit; font-weight:600; padding:11px 40px 11px
                background:var(--bg2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%2364748b' stroke-width='2'/%3E%3C/svg%3E") no-repeat right 14px center; }
 select.combo:disabled { cursor:default; opacity:.7; }
 select.combo:focus { outline:0; border-color:var(--accent); box-shadow:var(--ring); }
-.btn:focus-visible, .seg button:focus-visible, nav a:focus-visible, .brand:focus-visible { outline:0; box-shadow:var(--ring); }
+.btn:focus-visible, .seg button:focus-visible, nav a:focus-visible, .brand:focus-visible, .lang button:focus-visible { outline:0; box-shadow:var(--ring); }
 @media (max-width:560px) {
   .wrap { padding:12px 10px 24px; } .card { padding:16px; border-radius:16px; }
   .top { padding-left:12px; padding-right:12px; gap:8px; } nav a { padding:6px 9px; }
 }
-@media (max-width:420px) { .brand .name { display:none; } nav a { padding:6px 7px; font-size:13px; } }
+@media (max-width:480px) { .lang { padding:3px 0; background:none; } .lang button[aria-pressed=true] { display:none; } }
+@media (max-width:420px) { .brand .name { display:none; } nav a { padding:6px 7px; font-size:13px; } .lang button { padding:6px 5px; } }
+@media (max-width:400px) { .brand .logo { display:none; } }  /* miejsce na przelacznik jezyka (polskie nazwy zakladek) */
 )HTML"
 
-// back: "← " na podstronach - logo z nazwa prowadzi zawsze do podgladu.
-#define VLCD_NAV(back, main, lcd, wifi, test) R"HTML(
+// back: "← " na podstronach - logo z nazwa prowadzi zawsze do podgladu. pl/en: "true" przy aktywnym jezyku.
+// Przelacznik jezyka zapisuje wybor w urzadzeniu (POST /api/lang) i przeladowuje strone - serwer odda ja juz
+// w nowym jezyku. Strona przywrocona z pamieci przegladarki (wstecz) sprawdza jezyk i w razie zmiany sie przeladowuje.
+#define VLCD_NAV(back, main, lcd, wifi, test, pl, en, tMain, tLcd, tWifi, tTest) R"HTML(
 <header class="top">
   <a class="brand" href="/">)HTML" back R"HTML(<span class="logo"></span><span class="name">Virtual LCD</span></a>
-  <nav><a href="/")HTML" main R"HTML(>Podgląd</a><a href="/lcd")HTML" lcd R"HTML(>Wyświetlacz</a><a href="/wifi")HTML" wifi R"HTML(>WiFi</a><a href="/test")HTML" test R"HTML(>Test</a></nav>
+  <nav><a href="/")HTML" main R"HTML(>)HTML" tMain R"HTML(</a><a href="/lcd")HTML" lcd R"HTML(>)HTML" tLcd R"HTML(</a><a href="/wifi")HTML" wifi R"HTML(>)HTML" tWifi R"HTML(</a><a href="/test")HTML" test R"HTML(>)HTML" tTest R"HTML(</a></nav>
+  <div class="lang" role="group" aria-label="Język / Language"><button type="button" lang="pl" title="Polski" aria-pressed=")HTML" pl R"HTML(" onclick="setLang('pl')">PL</button><button type="button" lang="en" title="English" aria-pressed=")HTML" en R"HTML(" onclick="setLang('en')">EN</button></div>
 </header>
+<script>
+function setLang(l) {
+  if (document.documentElement.lang === l) return;
+  fetch('/api/lang', { method: 'POST', body: new URLSearchParams({ lang: l }) })
+    .then(r => { if (!r.ok) throw 0; location.reload(); })
+    .catch(() => alert(document.documentElement.lang === 'en' ? 'Could not change the language.' : 'Nie udało się zmienić języka.'));
+}
+addEventListener('pageshow', e => {
+  if (e.persisted) fetch('/api/lang', { cache: 'no-store' }).then(r => r.json())
+    .then(d => { if (d.lang !== document.documentElement.lang) location.reload(); }).catch(() => {});
+});
+</script>
 )HTML"
+#define VLCD_NAV_PL(back, main, lcd, wifi, test) \
+    VLCD_NAV(back, main, lcd, wifi, test, "true", "false", "Podgląd", "Wyświetlacz", "WiFi", "Test")
+#define VLCD_NAV_EN(back, main, lcd, wifi, test) \
+    VLCD_NAV(back, main, lcd, wifi, test, "false", "true", "Preview", "Display", "WiFi", "Test")
 
 #define VLCD_JS_COMMON R"HTML(
 const $ = id => document.getElementById(id);
@@ -119,7 +148,7 @@ async function post(url, data) {
 }
 )HTML"
 
-static const char kMainHtml[] = VLCD_HEAD("Virtual LCD") R"HTML(
+#define VLCD_CSS_MAIN R"HTML(
 .stage { display:flex; flex-direction:column; gap:14px; padding:14px; }
 #view { display:grid; min-height:220px; padding:16px; overflow:auto; border-radius:14px;
         background:var(--stage); box-shadow:inset 0 0 0 1px var(--line); }
@@ -129,23 +158,10 @@ static const char kMainHtml[] = VLCD_HEAD("Virtual LCD") R"HTML(
 #screen.off { filter:brightness(0); }
 #screen.round { border-radius:50%; }
 .meta { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; }
-</style>
-</head>
-<body>
-)HTML" VLCD_NAV("", " class=\"on\"", "", "", "") R"HTML(
-<main class="wrap">
-  <section class="card stage">
-    <div id="view"><canvas id="screen" width="240" height="320"></canvas></div>
-    <div class="meta">
-      <span class="pill"><span id="dot" class="dot"></span><span id="conn">Łączenie…</span></span>
-      <span class="pill" id="res">—</span>
-      <span class="pill" id="disp">—</span>
-    </div>
-    <p class="note" id="msg"></p>
-  </section>
-</main>
-<script>
-)HTML" VLCD_JS_COMMON R"HTML(
+)HTML"
+
+// Podglad na stronie glownej: obrot, skalowanie i dekodowanie ramek obrazu (takze RLE).
+#define VLCD_JS_MAIN_VIEW R"HTML(
 const cv = $('screen'), ctx = cv.getContext('2d');
 const src = document.createElement('canvas'), sctx = src.getContext('2d');
 // Obrot i skalowanie podgladu - ustawiane na stronie Wyswietlacz.
@@ -211,7 +227,26 @@ function onRegion(buf) {
   }
   need = true;
 }
+)HTML"
 
+static const char kMainHtml[] = VLCD_HEAD("pl", "Virtual LCD") VLCD_CSS_MAIN R"HTML(
+</style>
+</head>
+<body>
+)HTML" VLCD_NAV_PL("", " class=\"on\"", "", "", "") R"HTML(
+<main class="wrap">
+  <section class="card stage">
+    <div id="view"><canvas id="screen" width="240" height="320"></canvas></div>
+    <div class="meta">
+      <span class="pill"><span id="dot" class="dot"></span><span id="conn">Łączenie…</span></span>
+      <span class="pill" id="res">—</span>
+      <span class="pill" id="disp">—</span>
+    </div>
+    <p class="note" id="msg"></p>
+  </section>
+</main>
+<script>
+)HTML" VLCD_JS_COMMON VLCD_JS_MAIN_VIEW R"HTML(
 function onInfo(m) {
   if (!img || m.w !== src.width || m.h !== src.height) {
     src.width = m.w; src.height = m.h;
@@ -265,13 +300,16 @@ connect();
 </html>
 )HTML";
 
-static const char kLcdHtml[] = VLCD_HEAD("Virtual LCD – wyświetlacz") R"HTML(
+#define VLCD_CSS_LCD R"HTML(
 .wrap { max-width:640px; }
 .actions { margin-top:4px; }
+)HTML"
+
+static const char kLcdHtml[] = VLCD_HEAD("pl", "Virtual LCD – wyświetlacz") VLCD_CSS_LCD R"HTML(
 </style>
 </head>
 <body>
-)HTML" VLCD_NAV("← ", "", " class=\"on\"", "", "") R"HTML(
+)HTML" VLCD_NAV_PL("← ", "", " class=\"on\"", "", "") R"HTML(
 <main class="wrap">
   <section class="card">
     <h2>Wyświetlacz</h2>
@@ -356,7 +394,7 @@ fetch('/api/settings', { cache: 'no-store' }).then(r => r.json()).then(d => {
 </html>
 )HTML";
 
-static const char kWifiHtml[] = VLCD_HEAD("Virtual LCD – WiFi") R"HTML(
+#define VLCD_CSS_WIFI R"HTML(
 .wrap { max-width:640px; }
 .card + .card { margin-top:14px; }
 dl { display:grid; grid-template-columns:auto 1fr; gap:8px 16px; margin:0; }
@@ -376,10 +414,13 @@ dt { color:var(--muted); } dd { margin:0; font-weight:550; overflow-wrap:anywher
 .order li { margin:3px 0; }
 #done { display:none; }
 #done.show { display:block; }
+)HTML"
+
+static const char kWifiHtml[] = VLCD_HEAD("pl", "Virtual LCD – WiFi") VLCD_CSS_WIFI R"HTML(
 </style>
 </head>
 <body>
-)HTML" VLCD_NAV("← ", "", "", " class=\"on\"", "") R"HTML(
+)HTML" VLCD_NAV_PL("← ", "", "", " class=\"on\"", "") R"HTML(
 <main class="wrap">
   <section class="card">
     <h2>Stan połączenia</h2>
@@ -543,4 +584,6 @@ $('reboot').onclick = async () => {
 </html>
 )HTML";
 
-// Makra VLCD_HEAD / VLCD_NAV / VLCD_JS_COMMON uzywa tez TestHtml.h (tam sa #undef).
+#include "PagesEn.h"
+
+// Makra VLCD_HEAD / VLCD_NAV* / VLCD_JS_COMMON uzywa tez TestHtml.h (tam sa #undef).

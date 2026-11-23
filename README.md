@@ -23,6 +23,10 @@ Adres Pico podaje log szeregowy przy starcie (albo router). Bez skonfigurowanej 
 otwarty punkt dostępu **VirtualLCD**, a panel jest pod http://192.168.4.1/. Wszystkie strony mają
 u góry menu: Podgląd, Wyświetlacz, WiFi i Test.
 
+Panel jest po polsku albo po angielsku – przełącznik **PL / EN** jest w górnej belce (na wąskim ekranie
+widać tylko przycisk drugiego języka). Wybór jest zapisywany w urządzeniu, więc po restarcie strony od razu
+są w zapisanym języku, w każdej przeglądarce. Log testów na stronie Test zostaje po polsku.
+
 ### Podgląd (`/`)
 
 ![Podgląd](doc/img/podglad.png)
@@ -162,9 +166,9 @@ Do 3 kart przeglądarki naraz dostaje ten sam obraz. Przez WebSocket idą: lista
 
 ## Ustawienia
 
-Zapisywane w plikach `/lcd.bin` i `/wifi.bin` na LittleFS – partycja 64 KB na końcu flasha
+Zapisywane w plikach `/lcd.bin`, `/wifi.bin` i `/ui.bin` (język panelu) na LittleFS – partycja 64 KB na końcu flasha
 (`board_build.filesystem_size`). Zapis do flasha na chwilę wstrzymuje rdzeń 1, więc w tym czasie
-przechwytywanie SPI stoi – dzieje się to tylko po kliknięciu „Zapisz” na stronie.
+przechwytywanie SPI stoi – dzieje się to tylko po kliknięciu „Zapisz” na stronie albo zmianie języka.
 Wgranie nowego programu nie kasuje ustawień (partycja jest poza obszarem programu).
 
 ## Budowa
@@ -176,9 +180,10 @@ Wgranie nowego programu nie kasuje ustawień (partycja jest poza obszarem progra
 | `capture/spi_capture.pio` | program PIO: MOSI + D/C na zbocze SCK, bajt po CS |
 | `capture/PioSpiCapture` | PIO + DMA (pierścień 32 KB) + dekodowanie tablicą |
 | `web/WebServer` | HTTP + WebSocket na `WiFiServer`: strony, API ustawień, do 3 klientów |
-| `web/Pages`, `web/TestHtml` | strony `/`, `/lcd`, `/wifi` i `/test` |
+| `web/Pages`, `web/TestHtml` | strony `/`, `/lcd`, `/wifi` i `/test` po polsku + wspólne style i skrypty (makra) |
+| `web/PagesEn`, `web/TestHtmlEn` | te same strony po angielsku |
 | `net/Wifi` | WiFi: STA, AP, awaryjny AP, wyszukiwanie sieci |
-| `Settings` | ustawienia na LittleFS (wyświetlacz, WiFi) |
+| `Settings` | ustawienia na LittleFS (wyświetlacz, WiFi, język panelu) |
 | `test/SpiLcdMaster` | nadajnik: sprzętowe SPI, profile `kProfiles` z sekwencjami startowymi bibliotek |
 | `test/LoopbackTester`, `test/DemoSender` | test pętli zwrotnej i demo |
 

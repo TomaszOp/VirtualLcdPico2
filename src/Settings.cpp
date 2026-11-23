@@ -8,6 +8,7 @@ namespace {
 constexpr uint32_t kMagic = 0x564C4344;  // "VLCD"
 constexpr const char* kLcdFile = "/lcd.bin";
 constexpr const char* kWifiFile = "/wifi.bin";
+constexpr const char* kUiFile = "/ui.bin";
 
 bool s_mounted = false;
 
@@ -72,5 +73,9 @@ bool clearWifi() {
     if (!mount()) return false;
     return !LittleFS.exists(kWifiFile) || LittleFS.remove(kWifiFile);
 }
+
+bool loadUi(UiSettings& out) { return load(kUiFile, out); }
+
+bool saveUi(const UiSettings& s) { return save(kUiFile, s); }
 
 }  // namespace Settings
