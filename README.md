@@ -299,7 +299,9 @@ Without a profile the controller works normally, only the demo and loopback test
 
 ## License
 
-The VirtualLcd code is released under the [MIT license](LICENSE).
+Copyright (C) 2026 Tomasz (https://github.com/TomaszOp)
+
+The VirtualLcd code is released under the [GNU General Public License v3.0](LICENSE) (GPL-3.0-or-later).
 
 ---
 
@@ -601,4 +603,6 @@ Bez profilu sterownik działa normalnie, tylko demo i test pętli go nie obsłu�
 
 ## Licencja
 
-Kod VirtualLcd jest udostępniony na [licencji MIT](LICENSE).
+Copyright (C) 2026 Tomasz (https://github.com/TomaszOp)
+
+Kod VirtualLcd jest udostępniony na [licencji GNU GPL v3.0](LICENSE) (GPL-3.0-or-later).
