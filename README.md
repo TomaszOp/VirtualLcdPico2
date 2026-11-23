@@ -1,4 +1,309 @@
+<a id="english"></a>
+
 # VirtualLcd – Raspberry Pi Pico 2 W
+
+**English** · [Polski (wersja polska)](#polski)
+
+## What it is for
+
+VirtualLcd is a **virtual LCD display**. A Raspberry Pi Pico 2 W is connected to the SPI bus in place of
+a real display (ILI9341, ST7789, GC9A01, ST7735…). The Pico receives commands and pixels just like an LCD
+controller and shows the image on a web page, in a browser on a computer or a phone.
+
+The program on the microcontroller (ESP32, RP2040, STM32…) and its graphics library (Adafruit_GFX, TFT_eSPI,
+LovyanGFX…) **work without any changes**. No physical display is needed.
+
+![How VirtualLcd works: the microcontroller with its program sends the image over SPI to the Pico 2 W, and the Pico shows it over WiFi in a phone browser](doc/img/schemat.svg)
+
+The microcontroller sends commands and pixels over SPI exactly as it would to a real display. The Pico 2 W,
+wired in place of the LCD, receives them, builds the image and sends it over WiFi to a browser on a phone
+or computer.
+
+Useful for:
+- writing and running a program with a display when you have no display, or it is too small to see
+  the details (preview zoomed 1–4×),
+- checking what the library really sends: rotation, window offset (colstart/rowstart), inversion,
+  RGB/BGR color order, display off, backlight brightness,
+- showing the device's screen to other people (up to 3 browsers at once),
+- SPI performance tests up to 40 MHz (capture and overrun statistics).
+
+## Web panel
+
+The Pico's address is printed in the serial log at startup (or shown by the router). Without a configured
+network the Pico creates an open access point **VirtualLCD**, and the panel is at http://192.168.4.1/.
+All pages have a menu at the top: Preview, Display, WiFi and Test.
+
+The panel is in Polish or English – the **PL / EN** switch is in the top bar (on a narrow screen only the
+button of the other language is shown). The choice is saved on the device, so after a restart the pages
+come in the saved language right away, in every browser. The test log on the Test page stays in Polish.
+
+The screenshots below show the Polish version of the panel.
+
+### Preview (`/`)
+
+![Preview](doc/img/podglad.png)
+
+Live image of the emulated display, refreshed over WebSocket (only changed regions, RLE compressed).
+- Rotation and zoom according to the settings on the Display page ("Fit" = to the browser window size).
+- Below the image: connection status, model and resolution, display state (on/off, inversion)
+  and the measured backlight level.
+- The preview mirrors the display state: a display that is off (DISPOFF, sleep) is black, color inversion
+  is visible, and the image is dimmed according to the backlight on the LED pin. A round panel (GC9A01) has a round mask.
+- Reloading the page or going to another panel page closes the previous connection of the same browser.
+
+The screenshot shows the test pattern (color bars, gray scale, orientation marker in the top left corner).
+
+### Display (`/lcd`)
+
+![Display](doc/img/wyswietlacz.png)
+
+Settings of the emulated display:
+- **LCD model** – drop-down list of emulated controllers. It must match the library in the microcontroller program.
+- **Resolution** – panels available for the selected controller (e.g. ST7789: 240×320, 240×240, 135×240…).
+  Each one has its own window in the controller memory, like the offset set in the library. When a controller
+  has only one resolution, the list is disabled.
+- **Ignore the LED pin** – backlight always 100 %. When unchecked, the preview is dimmed according to the signal
+  on GP7 (steady level or PWM). The currently measured value is shown next to it.
+- **Rotation** and **Scaling** – only for the preview on the Preview page.
+- **Test pattern** – the Pico draws a test pattern in the selected panel by itself, without a second microcontroller.
+- **Save** – saves to flash. Model and resolution apply immediately, and all settings are loaded at startup.
+  The button is active only when there are unsaved changes.
+
+### WiFi (`/wifi`)
+
+![WiFi](doc/img/wifi.png)
+
+- **Connection status** – where the settings come from (the page, `secrets.h`, fallback access point), network name,
+  IP address and signal strength.
+- **Mode** – join an existing network (STA) or create an own access point (AP).
+- **Network name** with a **Scan** button (list of nearby networks) and **password** (empty = open network).
+- **Save and restart** – after the restart the page waits for the device and suggests the new address.
+- **Delete saved settings** (back to `secrets.h` or the VirtualLCD access point) and **Restart**.
+- Description of the order in which WiFi settings are tried at startup.
+
+### Test (`/test`)
+
+![Test](doc/img/test.png)
+
+A page for checking the emulator without a second microcontroller:
+- At the top: quick change of the emulated LCD (model + resolution, not saved), preview scale and rotation, test pattern.
+- Preview with counters: commands, SPI bytes, overruns, broken bytes, resets.
+- **Demo** – the SPI transmitter of the same Pico draws rectangles, text and an animated clock for the selected
+  display and SPI clock (10, 20 or 40 MHz).
+- **Loopback test** – initialization as in the library, a full image in which every pixel is different,
+  and a rectangle in rotation 1. Then a comparison with what the emulator received: wrong pixels, byte count,
+  display state. Selected clock, all clocks (10, 20, 40 MHz) or all models.
+- Test log in the black box at the bottom.
+
+Demo and test need the transmitter wires (see "Loopback test and demo" below).
+
+### Diagnostics (`/status`)
+
+JSON for a computer (e.g. `curl http://<address>/status`): capture counters (bytes, commands, overruns,
+peak load of core 1 and throughput), web connections (clients, disconnects, send errors, throughput),
+WiFi (RSSI), free memory and uptime.
+
+## How it works
+
+**PIO** assembles the bits in hardware. On every SCK edge it shifts in MOSI and D/C, and after 8 bits it outputs
+one 16-bit word per SPI byte. CS is checked at the start of every byte, so the clock of other devices on a shared
+bus is ignored.
+
+## Framework
+
+PlatformIO + [arduino-pico](https://github.com/earlephilhower/arduino-pico) (earlephilhower), maxgerhardt platform:
+- full pico-sdk 2.x (PIO, DMA, `pio_claim_free_sm_and_add_program_for_gpio_range`),
+- CYW43439 WiFi through lwIP (`WiFi`, `WiFiServer`),
+- both cores: `setup()/loop()` on core 0, `setup1()/loop1()` on core 1,
+- pioasm included – `tools/pioasm.py` generates `*.pio.h` before compiling.
+
+## Work split
+
+| Core | Task |
+|------|------|
+| 0 | WiFi, HTTP + WebSocket server, loopback test, demo |
+| 1 | capture only: reading the DMA ring, decoding, LCD controller |
+
+CPU clock 250 MHz (`board_build.f_cpu`, core voltage 1.20 V set in `main.cpp`).
+The PIO loop takes 3 instructions per bit, which leaves headroom up to about 60 MHz SPI.
+
+## Wiring
+
+| Microcontroller with the program | Pico 2 W |
+|----------------------------------|----------|
+| MOSI / SDA / DIN                 | GP2      |
+| D/C (RS, A0)                     | GP3      |
+| SCK / CLK                        | GP4      |
+| CS                               | GP5      |
+| RST (optional)                   | GP6      |
+| LED / BL (optional)              | GP7      |
+| GND                              | GND      |
+
+MOSI, D/C, SCK and CS must be consecutive GPIOs (this is how PIO reads them). 3.3 V levels (the Pico is not
+5 V tolerant). SPI mode 0. A common ground is required.
+
+### Loopback test and demo
+
+The test transmitter is the hardware SPI1 of the same Pico. Wires:
+GP10→GP4 (SCK), GP11→GP2 (MOSI), GP12→GP3 (D/C), GP13→GP5 (CS), GP14→GP6 (RST).
+The microcontroller with the program must be disconnected then.
+
+The transmitter SPI clock comes from a divider of the peripheral clock, so "40 MHz" may end up as e.g. 33.3 MHz –
+the log shows the actual value.
+
+## Getting started
+
+1. Optionally copy `include/secrets.h.example` to `include/secrets.h` and enter the WiFi data
+   (`WIFI_AP 1` = own access point, `0` or missing = join a network).
+2. `pio run -t upload` (Pico in BOOTSEL mode the first time), then `pio device monitor`.
+3. Open the address from the log. Diagnostics: `http://<address>/status`.
+
+WiFi settings order at startup: saved on the page (flash) → `secrets.h` → open access point
+**VirtualLCD** (http://192.168.4.1/). When the network from a step does not start (at most 15 s),
+the next one is tried. While running the VirtualLCD access point, the device tries to join the network
+every 3 minutes, but only when nobody is connected to the access point (CYW43 cannot do both at once).
+
+## Pages
+
+| Address | Content |
+|---------|---------|
+| `/` | image preview (rotation and scaling from the Display page settings) |
+| `/lcd` | LCD model, resolution, rotation, scaling, test pattern, "Save" (flash, loaded at startup) |
+| `/wifi` | network status, STA/AP mode, SSID (with scanning), password (empty = open network) |
+| `/test` | loopback test, SPI demo, capture statistics |
+| `/status` | diagnostics in JSON |
+
+Up to 3 browser tabs get the same image at once. The WebSocket carries: the controller list once after connecting
+(`drivers`), the state every second (`info`), the test log (`test`) and image regions (binary, RGB565, optionally RLE).
+
+## Settings
+
+Stored in the files `/lcd.bin`, `/wifi.bin` and `/ui.bin` (panel language) on LittleFS – a 64 KB partition at the
+end of flash (`board_build.filesystem_size`). Writing to flash pauses core 1 for a moment, so SPI capture stops
+during that time – this happens only after clicking "Save" on a page or changing the language.
+Uploading a new program does not erase the settings (the partition is outside the program area).
+
+## Code structure
+
+| File | Role |
+|------|------|
+| `VirtualLcd` | main class: controller registry `kDrivers`, frame buffer, capture (core 1), web and tests (core 0) |
+| `drivers/*` | LCD controllers: `MipiDcsDriver` (common commands) and derived classes with a panel list `kPanels` |
+| `capture/spi_capture.pio` | PIO program: MOSI + D/C on the SCK edge, byte after CS |
+| `capture/PioSpiCapture` | PIO + DMA (32 KB ring) + table decoding |
+| `web/WebServer` | HTTP + WebSocket on `WiFiServer`: pages, settings API, up to 3 clients |
+| `web/Pages`, `web/TestHtml` | pages `/`, `/lcd`, `/wifi` and `/test` in Polish + shared styles and scripts (macros) |
+| `web/PagesEn`, `web/TestHtmlEn` | the same pages in English |
+| `net/Wifi` | WiFi: STA, AP, fallback AP, network scan |
+| `Settings` | settings on LittleFS (display, WiFi, panel language) |
+| `test/SpiLcdMaster` | transmitter: hardware SPI, `kProfiles` profiles with the init sequences of libraries |
+| `test/LoopbackTester`, `test/DemoSender` | loopback test and demo |
+
+## Resolutions
+
+Every controller class has a `kPanels` list (e.g. `St7789Driver.h`): name, width, height and the position
+of the visible window in the controller memory – the offset that libraries add in CASET/RASET
+("colstart/rowstart"). The preview on the page shows only that window.
+
+| Controller | Resolutions |
+|------------|-------------|
+| ILI9341 | 240×320 |
+| ST7789 | 240×320, 240×280, 240×240, 172×320, 170×320, 135×240 (window x=52 like TFT_eSPI; Adafruit uses 53), 76×284 |
+| GC9A01 | 240×240, round (preview with a round mask) |
+| ST7735, ST7735R, ST7735S | 128×160 "green tab" (window 2,1, BGR), 128×128 (window 2,3 like Adafruit 144GREENTAB, BGR), 80×160 IPS (window 26,1 like TFT_eSPI/LovyanGFX – Adafruit uses 24,0; RGB, INVON) |
+
+A new resolution = a new entry in `kPanels` of the given controller. The loopback test and demo draw in the window
+of the selected resolution, just like a library would.
+
+## LED pin (backlight)
+
+GP7 measures the backlight signal: steady level or PWM (the RP2350 PWM counter counts cycles while the level
+is high, 50 ms window). The preview on the page is dimmed according to the duty cycle. On the Display page you
+can check "Ignore the LED pin" – then the backlight is always 100 % (the default, because without a wire the
+pin reads 0). The LED pin must be an odd GPIO (channel B of a PWM slice).
+
+## How to add a new LCD
+
+The controller list on the web pages (Display, Test) is built from the firmware, so the HTML does not change.
+
+### 1. Controller class – `src/drivers/<Name>Driver.h`
+
+Most SPI displays are MIPI DCS compatible (CASET/RASET/RAMWR, MADCTL, COLMOD, INVON, DISPON) –
+then the class derives from `MipiDcsDriver` and only provides constants:
+
+```cpp
+#pragma once
+
+#include "MipiDcsDriver.h"
+
+class Ili9488Driver : public MipiDcsDriver {
+public:
+    // Controller name - also on the page, in the settings and in the test profiles (test/SpiLcdMaster.cpp).
+    static constexpr const char* kName = "ILI9488";
+
+    // Panel resolutions (first = default): name, width, height, window x, y in memory
+    // [, round, bgr, inverted - panel-dependent traits, -1 = controller trait].
+    static constexpr PanelSize kPanels[] = {
+        {"320x480", 320, 480, 0, 0},
+    };
+
+    // Frame memory (width, height), BGR panel, X mirror, IPS (inverted colors), [Y mirror].
+    Ili9488Driver() : MipiDcsDriver({320, 480, true, true, false}) {}
+
+    const char* name() const override { return kName; }
+
+    // Test pattern from the page button: minimal sequence as in the library.
+    void testInit(const PanelSize& panel) override { ... testPattern(panel); }
+};
+```
+
+Panel traits (`PanelTraits`) are chosen so that what the library sends in rotation 0 gives a straight image:
+- `bgr` – the library sets the BGR bit in MADCTL (the panel has BGR order),
+- `mirrorX` / `mirrorY` – the library sends MX / MY in rotation 0 (the panel is mounted mirrored),
+- `inverted` – the library sends INVON (IPS panel).
+
+Vendor commands that change the image (e.g. ILI9341 0xB6 – scan direction) are handled in `onParam()`.
+When several chip versions share the same commands (ST7735, ST7735R, ST7735S), the common logic and panel list
+go to a base class (`St7735Base`), and each version is a separate small file with `kName`.
+
+### 2. Controller registry – `src/VirtualLcd.cpp`
+
+The header in `#include` and one entry in `kDrivers`:
+
+```cpp
+{Ili9488Driver::kName, []() -> LcdDriver* { return new Ili9488Driver(); }, Ili9488Driver::kPanels,
+ countOf(Ili9488Driver::kPanels)},
+```
+
+The frame buffer (RGB565, 2 B per pixel) is allocated at startup for the largest controller. Today that is
+240×320 = 150 KB, with about 125 KB of RAM left free – a 320×480 memory (300 KB) would no longer fit
+and would need e.g. a buffer with a lower color depth.
+
+### 3. Test profile – `src/test/SpiLcdMaster.cpp` (for the demo and loopback test)
+
+An init sequence as in a typical library (`LcdInitCmd`: command, parameter count, up to 16 parameters,
+delay in ms) and an entry in `kProfiles`:
+
+```cpp
+{Ili9488Driver::kName, kIli9488Init, sizeof(kIli9488Init) / sizeof(LcdInitCmd), 320, 480, 0x48, 0x28},
+//                                                                  frame memory, MADCTL rot. 0, rot. 1
+```
+
+Without a profile the controller works normally, only the demo and loopback test will not support it.
+
+### 4. Checking
+
+- `pio run` – build.
+- Test page → loopback test for the new model (all clocks) – must report "OK".
+- With a real microcontroller and library: rotation 0–3, colors (RGB/BGR), inversion and window offset.
+
+---
+
+<a id="polski"></a>
+
+# VirtualLcd – Raspberry Pi Pico 2 W (po polsku)
+
+[English](#english) · **Polski**
 
 ## Do czego to jest
 
@@ -8,6 +313,11 @@ tak jak sterownik LCD, a obraz pokazuje na stronie WWW, w przeglądarce na kompu
 
 Program na mikrokontrolerze (ESP32, RP2040, STM32…) i jego biblioteka graficzna (Adafruit_GFX, TFT_eSPI,
 LovyanGFX…) **działają bez żadnych zmian**. Nie trzeba mieć fizycznego wyświetlacza.
+
+![Jak działa VirtualLcd: mikrokontroler z programem wysyła obraz przez SPI do Pico 2 W, a Pico pokazuje go przez WiFi w przeglądarce telefonu](doc/img/schemat.svg)
+
+Mikrokontroler wysyła komendy i piksele przez SPI tak jak do prawdziwego wyświetlacza. Pico 2 W podłączone
+w miejsce LCD odbiera je, składa obraz i przez WiFi wysyła go do przeglądarki na telefonie albo komputerze.
 
 Do czego się przydaje:
 - pisanie i uruchamianie programu z wyświetlaczem, gdy wyświetlacza nie ma albo jest za mały, żeby
